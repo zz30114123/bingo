@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1-25 자유 선택 & 무작위 추첨기</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 480px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #1a1a1a;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+
+        /* 현재 추첨/선택된 숫자 Display */
+        .display-box {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            border-radius: 16px;
+            color: white;
+            height: 130px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+
+        .number-display {
+            font-size: 3.8rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .status-text {
+            font-size: 0.88rem;
+            margin-top: 8px;
+            opacity: 0.9;
+        }
+
+        /* 컨트롤 버튼 */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        button {
+            flex: 1;
+            padding: 14px 0;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-draw {
+            background-color: #4f46e5;
+            color: white;
+        }
+
+        .btn-draw:hover:not(:disabled) {
+            background-color: #4338ca;
+            transform: translateY(-2px);
+        }
+
+        .btn-draw:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-reset {
+            background-color: #e5e7eb;
+            color: #374151;
+            flex: 0.4;
+        }
+
+        .btn-reset:hover {
+            background-color: #d1d5db;
+        }
+
+        /* 현황 그리드 (1~25) */
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .history-title {
+            font-size: 0.95rem;
+            color: #4b5563;
+            font-weight: 600;
+        }
+
+        .guide-tip {
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+        }
+
+        .grid-item {
+            aspect-ratio: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 10px;
+            background-color: #f3f4f6;
+            color: #374151;
+            font-weight: 700;
+            font-size: 1.1rem;
+            cursor: pointer;
+            user-select: none;
+            border: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .grid-item:hover:not(.drawn) {
+            background-color: #e0e7ff;
+            color: #4f46e5;
+            border-color: #818cf8;
+            transform: scale(1.05);
+        }
+
+        /* 이미 나온/선택된 숫자 스타일 */
+        .grid-item.drawn {
+            background-color: #4f46e5;
+            color: white;
+            font-weight: 800;
+        }
+
+        /* 가장 최근 선택/추첨된 숫자 강조 */
+        .grid-item.latest {
+            background-color: #f59e0b;
+            color: white;
+            box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>1 ~ 25 추첨 & 선택기</h1>
+
+    <div class="display-box">
+        <div class="number-display" id="currentNumber">-</div>
+        <div class="status-text" id="statusText">버튼을 누르거나 숫자를 직접 클릭하세요</div>
+    </div>
+
+    <div class="btn-group">
+        <button class="btn-draw" id="drawBtn" onclick="drawNumber()">랜덤 추첨</button>
+        <button class="btn-reset" onclick="resetGame()">초기화</button>
+    </div>
+
+    <div class="history-header">
+        <div class="history-title">진행 현황 (<span id="countText">0</span>/25)</div>
+        <div class="guide-tip">💡 숫자를 직접 눌러 지울 수 있습니다</div>
+    </div>
+    
+    <div class="grid" id="gridContainer"></div>
+</div>
+
+<script>
+    let remainingNumbers = [];
+    let drawnNumbers = [];
+    let lastDrawn = null;
+
+    const currentNumberEl = document.getElementById('currentNumber');
+    const statusTextEl = document.getElementById('statusText');
+    const drawBtn = document.getElementById('drawBtn');
+    const countTextEl = document.getElementById('countText');
+    const gridContainer = document.getElementById('gridContainer');
+
+    // 게임 초기화
+    function resetGame() {
+        remainingNumbers = Array.from({ length: 25 }, (_, i) => i + 1);
+        drawnNumbers = [];
+        lastDrawn = null;
+
+        currentNumberEl.textContent = '-';
+        statusTextEl.textContent = '버튼을 누르거나 숫자를 직접 클릭하세요';
+        drawBtn.disabled = false;
+        countTextEl.textContent = '0';
+
+        renderGrid();
+    }
+
+    // 1~25 숫자 그리드 그리기 및 클릭 이벤트 연결
+    function renderGrid() {
+        gridContainer.innerHTML = '';
+        for (let i = 1; i <= 25; i++) {
+            const item = document.createElement('div');
+            item.classList.add('grid-item');
+            item.textContent = i;
+
+            if (drawnNumbers.includes(i)) {
+                item.classList.add('drawn');
+                if (i === lastDrawn) {
+                    item.classList.add('latest'); // 최근 선택된 숫자 주황색 표시
+                }
+            } else {
+                // 아직 안 나온 숫자는 클릭 가능
+                item.onclick = () => selectNumber(i);
+            }
+
+            gridContainer.appendChild(item);
+        }
+    }
+
+    // 공통 숫자 선택 처리 (랜덤 추첨 또는 직접 클릭 공용)
+    function processSelection(num, sourceText) {
+        // 남은 목록에서 선택한 숫자 제거
+        remainingNumbers = remainingNumbers.filter(n => n !== num);
+        drawnNumbers.push(num);
+        lastDrawn = num;
+
+        // 화면 UI 업데이트
+        currentNumberEl.textContent = num;
+        countTextEl.textContent = drawnNumbers.length;
+        statusTextEl.textContent = `${sourceText} (남은 숫자: ${remainingNumbers.length}개)`;
+
+        renderGrid();
+
+        // 25개 모두 완료 시
+        if (remainingNumbers.length === 0) {
+            drawBtn.disabled = true;
+            statusTextEl.textContent = '🎉 모든 숫자가 완료되었습니다!';
+        }
+    }
+
+    // 1. 숫자를 직접 클릭했을 때
+    function selectNumber(num) {
+        if (remainingNumbers.length === 0) return;
+        processSelection(num, `[${num}]번 숫자를 직접 클릭했습니다`);
+    }
+
+    // 2. 랜덤 추첨 버튼을 눌렀을 때
+    function drawNumber() {
+        if (remainingNumbers.length === 0) return;
+
+        const randomIndex = Math.floor(Math.random() * remainingNumbers.length);
+        const selectedNumber = remainingNumbers[randomIndex];
+
+        processSelection(selectedNumber, `[${selectedNumber}]번이 무작위 추첨되었습니다`);
+    }
+
+    // 초기화 실행
+    resetGame();
+</script>
+
+</body>
+</html>
